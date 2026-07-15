@@ -110,6 +110,7 @@ model Workspace {
   timelineEvents  TimelineEvent[]
   reports         Report[]
   opportunities   Opportunity[]
+  researchRuns    ResearchRun[]
   conversations   Conversation[]
   jobs            Job[]
 
@@ -337,6 +338,33 @@ model Opportunity {
 
   @@index([workspaceId])
   @@index([workspaceId, type])
+}
+
+// ============================================================
+// RESEARCH RUNS (Module 8) — Auto Research History
+// ============================================================
+
+model ResearchRun {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  userId          String?
+  organizationId  String?
+  goal            String?  // the research goal used
+  queryCount      Int      @default(0)
+  resultCount     Int      @default(0)
+  pagesRead       Int      @default(0)
+  sourcesCreated  Int      @default(0)
+  sources         String   @default("[]") // JSON array of source info [{id,title,url}]
+  summary         String?
+  status          String   @default("completed") // running | completed | failed
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  durationMs      Int      @default(0)
+
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([startedAt])
 }
 
 model Report {

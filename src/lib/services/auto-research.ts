@@ -147,7 +147,7 @@ async function createSourceFromPage(
         workspaceId,
         title: title.slice(0, 500),
         sourceUrl: url,
-        type: "web",
+        type: "web_page",
         status: "pending",
         mimeType: "text/html",
       },
@@ -247,6 +247,7 @@ export async function runAutoResearch(
   // Phase 4: Read top pages and create sources
   const processedUrls = new Set<string>();
   let sourcesCreated = 0;
+  const createdSources: { id: string; title: string; url: string }[] = [];
 
   for (const result of topResults) {
     if (sourcesCreated >= maxPages) break;
@@ -269,6 +270,11 @@ export async function runAutoResearch(
 
       if (sourceId) {
         sourcesCreated++;
+        createdSources.push({
+          id: sourceId,
+          title: (page.title || result.title).slice(0, 200),
+          url: result.url,
+        });
         // Process through pipeline (don't await - let it run in background)
         processSourceKnowledge(sourceId).catch((err) => {
           console.error(`[AutoResearch] Pipeline error for ${sourceId}:`, err);
@@ -279,13 +285,36 @@ export async function runAutoResearch(
     }
   }
 
-  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  const durationMs = Date.now() - startTime;
+  const elapsed = (durationMs / 1000).toFixed(1);
+
+  const resultSummary = `تحقیق خودکار در ${elapsed} ثانیه انجام شد. ${queries.length} جستجو انجام شد، ${uniqueResults.length} نتیجه منحصربه‌فرد یافت شد، ${processedUrls.size} صفحه خوانده شد و ${sourcesCreated} منبع جدید ایجاد شد. پردازش این منابع (استخراج موجودیت و ادعا) در پس‌زمینه ادامه دارد.`;
+
+  // Save research run to history
+  try {
+    await db.researchRun.create({
+      data: {
+        workspaceId,
+        goal: researchGoal,
+        queryCount: queries.length,
+        resultCount: uniqueResults.length,
+        pagesRead: processedUrls.size,
+        sourcesCreated,
+        sources: JSON.stringify(createdSources),
+        summary: resultSummary,
+        status: "completed",
+        durationMs,
+      },
+    });
+  } catch (err) {
+    console.error(`[AutoResearch] Failed to save research run:`, err);
+  }
 
   return {
     totalSearches: queries.length,
     totalResults: uniqueResults.length,
     pagesRead: processedUrls.size,
     sourcesCreated,
-    summary: `تحقیق خودکار در ${elapsed} ثانیه انجام شد. ${queries.length} جستجو انجام شد، ${uniqueResults.length} نتیجه منحصربه‌فرد یافت شد، ${processedUrls.size} صفحه خوانده شد و ${sourcesCreated} منبع جدید ایجاد شد. پردازش این منابع (استخراج موجودیت و ادعا) در پس‌زمینه ادامه دارد.`,
+    summary: resultSummary,
   };
 }

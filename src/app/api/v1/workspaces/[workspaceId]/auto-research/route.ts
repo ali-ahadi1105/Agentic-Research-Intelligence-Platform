@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { db } from "@/lib/db";
 import {
   getAuthContext,
   ok,
@@ -10,6 +11,35 @@ import {
 } from "@/lib/services/api-helpers";
 import { runAutoResearch } from "@/lib/services/auto-research";
 import { AuditLog } from "@/lib/services/audit";
+
+/**
+ * GET /api/v1/workspaces/[workspaceId]/auto-research
+ * List research run history for a workspace.
+ */
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ workspaceId: string }> }
+) {
+  try {
+    const auth = await getAuthContext();
+    if (!auth) return unauthorizedResponse();
+    const { workspaceId } = await params;
+
+    const ws = await authorizeWorkspace(workspaceId, auth);
+    if (!ws) return notFound("Workspace");
+
+    const runs = await db.researchRun.findMany({
+      where: { workspaceId },
+      orderBy: { startedAt: "desc" },
+      take: 20,
+    });
+
+    return ok(runs);
+  } catch (err) {
+    console.error("[Research History API] Error:", err);
+    return internalError();
+  }
+}
 
 /**
  * POST /api/v1/workspaces/[workspaceId]/auto-research

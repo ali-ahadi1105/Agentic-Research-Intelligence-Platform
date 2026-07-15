@@ -277,6 +277,19 @@ export const api = {
   },
 
   autoResearch: {
+    list: (wsId: string) => request<{
+      id: string;
+      goal: string | null;
+      queryCount: number;
+      resultCount: number;
+      pagesRead: number;
+      sourcesCreated: number;
+      sources: string;
+      summary: string | null;
+      status: string;
+      startedAt: string;
+      durationMs: number;
+    }[]>(`/api/v1/workspaces/${wsId}/auto-research`),
     run: (wsId: string, goal?: string, maxQueries?: number, maxPages?: number) =>
       request<{ totalSearches: number; totalResults: number; pagesRead: number; sourcesCreated: number; summary: string }>(
         `/api/v1/workspaces/${wsId}/auto-research`,
