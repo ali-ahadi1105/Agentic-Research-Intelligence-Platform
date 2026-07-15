@@ -13,6 +13,7 @@ import {
   Trash2,
   ArrowLeft,
   FileBarChart,
+  FileType,
   Lightbulb,
   Building2,
   TrendingUp,
@@ -25,6 +26,8 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { formatFaDateTime } from "@/lib/fa";
+import { exportReportToPDF } from "@/lib/export";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -40,7 +43,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
 
 const OPPORTUNITY_TYPE_CONFIG: Record<
   string,
@@ -167,6 +169,27 @@ export function OpportunityView() {
           >
             <FileBarChart className="size-4 ml-2" />
             Markdown
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              const toastId = toast.loading("در حال آماده‌سازی PDF...");
+              try {
+                await exportReportToPDF(
+                  selectedAnalysis.title,
+                  selectedAnalysis.contentMarkdown,
+                  selectedAnalysis.title
+                );
+                toast.success("فایل PDF دانلود شد", { id: toastId });
+              } catch (err) {
+                console.error("PDF Export Error:", err);
+                toast.error("خطا در تولید PDF", { id: toastId });
+              }
+            }}
+          >
+            <FileType className="size-4 ml-2" />
+            PDF
           </Button>
           <Button
             variant="outline"
