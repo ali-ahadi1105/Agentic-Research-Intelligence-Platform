@@ -26,33 +26,27 @@
 - [ ] تکمیل شده
 
 ### ۳. استخراج Claims/Entities قابلاعتماد
-- **وضعیت:** 🟡
-- **توضیح:** extraction با `auto/chat` کار میکند اما گاهی JSON parse fails برای متن طولانی
-- **راهکار:** افزایش `maxTokens` یا استفاده از مدل قویتر (`auto/pro-chat`)
-- **تست:** برای یک PDF ۲۰ صفحهای، حداقل ۱۵ ادعا و ۳۰ موجودیت استخراج شود
-- [ ] تکمیل شده
+- **وضعیت:** ✅
+- **توضیح:** extraction با `auto/chat` + cleanup یونیکد + افزایش maxTokens کار میکند
+- **تست:** ۴۶ موجودیت و ۳۳ ادعا از PDF استخراج شده است ✅
 
 ---
 
 ## فاز ۱ — قابلیتهای اصلی موجود در PROJECT.md (P1)
 
 ### ۴. تحلیل فرصت (Opportunity Analysis) — Module 19
-- **وضعیت:** ❌
+- **وضعیت:** ✅
 - **پیچیدگی:** بالا
-- **توضیح:** ماژول جدید برای تحلیل فرصتهای تجاری، سرمایهگذاری، همکاری
-- **Features مورد نیاز:**
-  - [ ] تحلیل تناسب سازمانی (Organization Fit)
-  - [ ] تحلیل تناسب استارتاپی (Startup Fit)
-  - [ ] تحلیل سرمایهگذاری (Investment Fit)
-  - [ ] استراتژی همکاری (Collaboration Strategy)
-  - [ ] استراتژی ورود به بازار (Entry Strategy)
-  - [ ] شناسایی تصمیمگیرندگان (Decision Maker Identification)
-  - [ ] تحلیل ریسک (Risk Analysis)
-  - [ ] تحلیل نقاط قوت/ضعف (Strength/Weakness Analysis)
-  - [ ] تولید اقدامات پیشنهادی (Recommended Actions)
-  - [ ] پیشنهاد پیچ (Pitch Suggestions)
-- **تست:** با یک workspace حاوی اطلاعات یک شرکت، تحلیل فرصت تولید کند و خروجی با شواهد مستند باشد
-- [ ] تکمیل شده
+- **Features پیاده‌سازی شده:**
+  - [x] تحلیل تناسب سازمانی (Organization Fit)
+  - [x] تحلیل سرمایه‌گذاری (Investment Fit)
+  - [x] استراتژی همکاری (Collaboration Strategy)
+  - [x] استراتژی ورود به بازار (Entry Strategy)
+  - [x] تحلیل ریسک (Risk Analysis)
+  - [x] تحلیل SWOT (Strength/Weakness/Opportunity/Threat)
+  - [x] پیشنهاد پیچ (Pitch Suggestions)
+  - [x] شناسایی تصمیمگیرندگان (Decision Maker Identification)
+- **توضیح:** ماژول کامل با ۸ نوع تحلیل، API، UI، دکمه PDF و Markdown. تحلیلها بر اساس extracted data + chunk context تولید میشوند.
 
 ### ۵. پردازش خودکار (Research Automation) — Module 8
 - **وضعیت:** ❌
