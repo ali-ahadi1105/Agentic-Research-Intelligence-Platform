@@ -109,6 +109,7 @@ model Workspace {
   claims          Claim[]
   timelineEvents  TimelineEvent[]
   reports         Report[]
+  opportunities   Opportunity[]
   conversations   Conversation[]
   jobs            Job[]
 
@@ -317,6 +318,26 @@ model TimelineEvent {
 // ============================================================
 // REPORTS (Module 18)
 // ============================================================
+
+model Opportunity {
+  id                  String   @id @default(cuid())
+  workspaceId         String
+  type                String   // organization_fit | investment_fit | collaboration | entry_strategy | risk_analysis | swot | pitch | decision_makers | general
+  title               String
+  summary             String   // Short executive summary of the analysis
+  contentMarkdown     String   // Full analysis in markdown
+  contentJson         String?  // Structured JSON data (optional)
+  status              String   @default("generated") // generated | archived
+  confidence          Float?   // Overall confidence score
+  createdBy           String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  workspace           Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([workspaceId, type])
+}
 
 model Report {
   id              String   @id @default(cuid())

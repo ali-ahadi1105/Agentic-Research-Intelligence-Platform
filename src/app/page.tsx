@@ -12,6 +12,7 @@ import { KnowledgeBaseView } from "@/components/knowledge/knowledge-base-view";
 import { KnowledgeGraphView } from "@/components/graph/knowledge-graph-view";
 import { TimelineView } from "@/components/timeline/timeline-view";
 import { ReportsView } from "@/components/reports/reports-view";
+import { OpportunityView } from "@/components/opportunity/opportunity-view";
 import { ChatView } from "@/components/chat/chat-view";
 import { SettingsView } from "@/components/dashboard/settings-view";
 import { AdminPanel } from "@/components/admin/admin-panel";
@@ -53,6 +54,8 @@ export default function Home() {
         <TimelineView />
       ) : currentView === "reports" ? (
         <ReportsView />
+      ) : currentView === "opportunity" ? (
+        <OpportunityView />
       ) : currentView === "chat" ? (
         <ChatView />
       ) : currentView === "settings" ? (

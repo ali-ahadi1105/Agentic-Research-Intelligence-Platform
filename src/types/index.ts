@@ -136,6 +136,18 @@ export interface Report {
   createdAt: string;
 }
 
+export interface Opportunity {
+  id: string;
+  workspaceId: string;
+  title: string;
+  type: string;
+  summary: string;
+  contentMarkdown: string;
+  status: string;
+  confidence: number | null;
+  createdAt: string;
+}
+
 export interface Conversation {
   id: string;
   workspaceId: string;

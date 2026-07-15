@@ -491,3 +491,101 @@ function getReportPrompt(type: string): string {
       return PROMPTS.reportExecutive.system;
   }
 }
+
+// ============================================================
+// Opportunity Analysis (Module 19)
+// ============================================================
+
+export interface OpportunityContext {
+  workspaceName: string;
+  researchGoal: string;
+  entities: { name: string; type: string; description: string | null }[];
+  relationships: { source: string; target: string; type: string; confidence: number }[];
+  claims: { statement: string; confidence: number; status: string }[];
+  evidence: { excerpt: string; sourceTitle: string }[];
+  timelineEvents: { title: string; description: string | null; eventDate: string | null }[];
+  sources: { title: string; type: string }[];
+}
+
+/**
+ * Generate an opportunity analysis based on workspace knowledge.
+ */
+export async function generateOpportunityAnalysis(
+  type: string,
+  context: OpportunityContext
+): Promise<string> {
+  const entitiesText = context.entities
+    .slice(0, 20)
+    .map((e) => `- ${e.name} (${e.type}): ${e.description || "بدون توضیحات"}`)
+    .join("\n");
+
+  const relsText = context.relationships
+    .slice(0, 20)
+    .map(
+      (r) =>
+        `- ${r.source} → [${r.type}] → ${r.target} (اطمینان: ${Math.round(r.confidence * 100)}%)`
+    )
+    .join("\n");
+
+  const claimsText = context.claims
+    .slice(0, 20)
+    .map(
+      (c) =>
+        `- [${c.status}] ${c.statement} (اطمینان: ${Math.round(c.confidence * 100)}%)`
+    )
+    .join("\n");
+
+  const evidenceText = context.evidence
+    .slice(0, 15)
+    .map((e, i) => `[E:${i + 1}] ${e.excerpt} — از: ${e.sourceTitle}`)
+    .join("\n");
+
+  const timelineText = context.timelineEvents
+    .slice(0, 15)
+    .map(
+      (t) =>
+        `- ${t.eventDate ? new Date(t.eventDate).toLocaleDateString("fa-IR") : "بدون تاریخ"}: ${t.title}${t.description ? " — " + t.description : ""}`
+    )
+    .join("\n");
+
+  const sourcesText = context.sources
+    .map((s) => `- ${s.title} (${s.type})`)
+    .join("\n");
+
+  const analysis = await chatCompletion({
+    messages: [
+      { role: "system", content: PROMPTS.opportunityAnalysis.system },
+      {
+        role: "user",
+        content: `Generate a ${type.replace(/_/g, " ")} opportunity analysis in Persian Markdown for the following workspace.
+
+Workspace: ${context.workspaceName}
+Research goal: ${context.researchGoal || "تعیین نشده"}
+
+ENTITIES:
+${entitiesText || "موجودیتی ثبت نشده است."}
+
+RELATIONSHIPS:
+${relsText || "رابطه‌ای ثبت نشده است."}
+
+CLAIMS:
+${claimsText || "ادعایی ثبت نشده است."}
+
+EVIDENCE:
+${evidenceText || "شواهدی ثبت نشده است."}
+
+TIMELINE EVENTS:
+${timelineText || "رویدادی ثبت نشده است."}
+
+SOURCES:
+${sourcesText || "منبعی ثبت نشده است."}
+
+Generate the analysis now based on type: ${type}.`,
+      },
+    ],
+    temperature: 0.5,
+    maxTokens: 4000,
+  }, providerConfig());
+
+  return analysis;
+}

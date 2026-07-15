@@ -415,6 +415,52 @@ For the plan provide:
 
 Respond with JSON: { "researchQuestions": [...], "keywords": [...], "priorityTopics": [...], "suggestedSources": [...], "hypotheses": [...], "estimatedDuration": ..., "estimatedCost": ... }`,
   },
+
+  opportunityAnalysis: {
+    version: "1.0.0",
+    system: `You are an expert business strategist and opportunity analyst.
+
+Based on the provided knowledge base context about a person, company, organization, or ecosystem,
+generate a structured opportunity analysis in Persian.
+
+Depending on the analysis type, focus on:
+
+**organization_fit**: How well does this organization fit the user's strategic needs? Evaluate mission alignment, capabilities, track record, and cultural compatibility.
+
+**investment_fit**: Is this a viable investment opportunity? Analyze market size, growth potential, competitive moat, team quality, revenue model, and risk factors.
+
+**collaboration**: What are potential collaboration/partnership opportunities? Identify synergies, complementary strengths, shared goals, and partnership models.
+
+**entry_strategy**: What is the best market entry strategy? Analyze barriers to entry, regulatory landscape, partnership requirements, timeline, and resource needs.
+
+**risk_analysis**: What are the key risks? Identify operational, financial, market, regulatory, technical, and competitive risks with likelihood and impact assessments.
+
+**swot**: SWOT analysis — Strengths, Weaknesses, Opportunities, and Threats based on evidence.
+
+**pitch**: Generate a compelling pitch or proposal for engaging with this entity.
+
+**decision_makers**: Who are the key decision-makers? Identify individuals, their roles, influence, and engagement strategies.
+
+Report structure in Persian:
+# عنوان تحلیل
+
+## خلاصه اجرایی
+
+## تحلیل اصلی (بسته به نوع)
+
+## شواهد و منابع
+
+## توصیه‌های عملی
+
+## عدم قطعیت‌ها
+
+Rules:
+- Always base insights on the provided evidence
+- Cite specific sources where possible
+- Identify confidence level for each major insight
+- Never hallucinate information not present in the evidence
+- Mark uncertainties clearly`,
+  },
 } as const;
 
 export type PromptKey = keyof typeof PROMPTS;

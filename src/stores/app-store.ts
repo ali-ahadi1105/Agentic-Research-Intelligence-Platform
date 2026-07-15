@@ -12,6 +12,7 @@ export type ViewKey =
   | "graph"
   | "timeline"
   | "reports"
+  | "opportunity"
   | "chat"
   | "settings"
   | "admin";
@@ -25,6 +26,7 @@ interface AppState {
   selectedEntityId: string | null;
   // For report viewing
   selectedReportId: string | null;
+  selectedOpportunityId: string | null;
 
   setWorkspace: (id: string | null) => void;
   setView: (view: ViewKey) => void;
@@ -39,6 +41,7 @@ export const useAppStore = create<AppState>((set) => ({
   currentConversationId: null,
   selectedEntityId: null,
   selectedReportId: null,
+  selectedOpportunityId: null,
 
   setWorkspace: (id) =>
     set({ currentWorkspaceId: id, currentView: id ? "workspace" : "dashboard" }),
@@ -46,4 +49,5 @@ export const useAppStore = create<AppState>((set) => ({
   setConversation: (id) => set({ currentConversationId: id }),
   setSelectedEntity: (id) => set({ selectedEntityId: id }),
   setSelectedReport: (id) => set({ selectedReportId: id }),
+  setSelectedOpportunity: (id) => set({ selectedOpportunityId: id }),
 }));

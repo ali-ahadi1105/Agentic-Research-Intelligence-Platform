@@ -12,6 +12,7 @@ import type {
   Evidence,
   TimelineEvent,
   Report,
+  Opportunity,
   Conversation,
   Message,
   GraphData,
@@ -257,6 +258,20 @@ export const api = {
       }),
     delete: (wsId: string, id: string) =>
       request<{ deleted: boolean }>(`/api/v1/workspaces/${wsId}/reports/${id}`, {
+        method: "DELETE",
+      }),
+  },
+
+  opportunity: {
+    list: (wsId: string) => request<Opportunity[]>(`/api/v1/workspaces/${wsId}/opportunity`),
+    get: (wsId: string, id: string) => request<Opportunity>(`/api/v1/workspaces/${wsId}/opportunity/${id}`),
+    generate: (wsId: string, type: string, title?: string) =>
+      request<Opportunity>(`/api/v1/workspaces/${wsId}/opportunity`, {
+        method: "POST",
+        body: JSON.stringify({ type, title }),
+      }),
+    delete: (wsId: string, id: string) =>
+      request<{ deleted: boolean }>(`/api/v1/workspaces/${wsId}/opportunity/${id}`, {
         method: "DELETE",
       }),
   },
