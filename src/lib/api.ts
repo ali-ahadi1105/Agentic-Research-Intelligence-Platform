@@ -276,6 +276,17 @@ export const api = {
       }),
   },
 
+  autoResearch: {
+    run: (wsId: string, goal?: string, maxQueries?: number, maxPages?: number) =>
+      request<{ totalSearches: number; totalResults: number; pagesRead: number; sourcesCreated: number; summary: string }>(
+        `/api/v1/workspaces/${wsId}/auto-research`,
+        {
+          method: "POST",
+          body: JSON.stringify({ goal, maxQueries, maxPages }),
+        }
+      ),
+  },
+
   chat: {
     list: (wsId: string) => request<Conversation[]>(`/api/v1/workspaces/${wsId}/chat`),
     get: (wsId: string, convId: string) =>

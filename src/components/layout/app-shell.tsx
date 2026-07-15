@@ -60,6 +60,7 @@ const NAV_ITEMS: { view: ViewKey; label: string; icon: React.ElementType; permis
   { view: "timeline", label: "خط زمانی", icon: Calendar },
   { view: "reports", label: "گزارش‌ها", icon: FileBarChart, permission: "report.generate" },
   { view: "opportunity", label: "تحلیل فرصت", icon: Lightbulb, permission: "report.generate" },
+  { view: "auto-research", label: "تحقیق خودکار", icon: Search, permission: "document.upload" },
   { view: "chat", label: "گفتگوی هوشمند", icon: MessageSquare, permission: "chat.send" },
   { view: "settings", label: "تنظیمات", icon: Settings },
   { view: "admin", label: "پنل مدیریت", icon: Shield, permission: "admin.access" },

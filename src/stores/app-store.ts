@@ -13,6 +13,7 @@ export type ViewKey =
   | "timeline"
   | "reports"
   | "opportunity"
+  | "auto-research"
   | "chat"
   | "settings"
   | "admin";
