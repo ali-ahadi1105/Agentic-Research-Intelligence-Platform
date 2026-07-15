@@ -4,53 +4,8 @@
  * Uses jsPDF for PDF generation and PapaParse for CSV.
  * All exports happen client-side — no server roundtrip needed.
  */
-import jsPDF from "jspdf";
+import "client-only";
 import Papa from "papaparse";
-// @ts-ignore
-import { PersianShaper } from "arabic-persian-reshaper";
-
-let cachedVazirmatnBase64 = "";
-
-async function loadVazirmatnFont() {
-  if (cachedVazirmatnBase64) return cachedVazirmatnBase64;
-  try {
-    const response = await fetch("/fonts/Vazirmatn-base64.txt");
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    cachedVazirmatnBase64 = await response.text();
-    return cachedVazirmatnBase64;
-  } catch (error) {
-    console.error("Failed to load Vazirmatn base64 font:", error);
-    return "";
-  }
-}
-
-function processPersianText(text: string): string {
-  if (!text) return "";
-
-  // 1. Shape the Persian/Arabic text
-  const shaped = PersianShaper.convertArabic(text);
-
-  // 2. Identify LTR blocks (alphanumeric sequences) to protect them from character reversal
-  const ltrRegex = /[a-zA-Z0-9]+/g;
-  const ltrBlocks: string[] = [];
-  
-  let placeholderCount = 0;
-  const tempString = shaped.replace(ltrRegex, (match) => {
-    ltrBlocks.push(match);
-    return `__LTR_${placeholderCount++}__`;
-  });
-
-  // 3. Reverse the string character-by-character
-  const reversed = tempString.split("").reverse().join("");
-
-  // 4. Restore LTR blocks in their original LTR reading direction
-  const restored = reversed.replace(/__([0-9]+)_RTL__/g, (match, indexStr) => {
-    const index = parseInt(indexStr, 10);
-    return ltrBlocks[index] || "";
-  });
-
-  return restored;
-}
 
 // ============================================================
 // CSV Export
@@ -91,229 +46,107 @@ export function exportToCSV(
 export async function exportReportToPDF(
   title: string,
   content: string,
-  filename: string
+  _filename: string
 ) {
-  const pdf = new jsPDF({
-    orientation: "portrait",
-    unit: "mm",
-    format: "a4",
-  });
-
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-  const margin = 20;
-  const maxWidth = pageWidth - margin * 2;
-  const lineHeight = 7;
-
-  let y = margin;
-
-  const base64Font = await loadVazirmatnFont();
-  if (base64Font) {
-    pdf.addFileToVFS("Vazirmatn-Regular.ttf", base64Font);
-    pdf.addFont("Vazirmatn-Regular.ttf", "Vazirmatn", "normal");
-    pdf.addFont("Vazirmatn-Regular.ttf", "Vazirmatn", "bold");
-    pdf.setFont("Vazirmatn", "normal");
-  } else {
-    pdf.setFont("helvetica", "normal");
+  // Open a new window with proper styling, then user clicks "دریافت PDF" to print/save
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) {
+    // Fallback: download markdown
+    const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${title}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    return;
   }
 
-  // Title
-  const hasTitlePersian = /[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(title);
-  pdf.setFontSize(18);
-  if (base64Font) {
-    pdf.setFont("Vazirmatn", "bold");
-  } else {
-    pdf.setFont("helvetica", "bold");
-  }
+  // Absolute font URL (relative doesn't work in a new blank window)
+  const origin = window.location.origin;
 
-  const titleLines = pdf.splitTextToSize(title, maxWidth);
-  titleLines.forEach((line) => {
-    const processed = hasTitlePersian ? processPersianText(line) : line;
-    const x = hasTitlePersian ? pageWidth - margin : margin;
-    const align = hasTitlePersian ? "right" : "left";
-    pdf.text(processed, x, y, { align });
-    y += lineHeight;
-  });
-  y += 5;
-
-  // Date
-  pdf.setFontSize(10);
-  if (base64Font) {
-    pdf.setFont("Vazirmatn", "normal");
-  } else {
-    pdf.setFont("helvetica", "normal");
-  }
-  pdf.setTextColor(128, 128, 128);
-  pdf.text(
-    `Generated: ${new Date().toLocaleString("en-GB")}`,
-    margin,
-    y
-  );
-  y += lineHeight + 5;
-  pdf.setTextColor(0, 0, 0);
-
-  // Separator line
-  pdf.setDrawColor(200, 200, 200);
-  pdf.line(margin, y, pageWidth - margin, y);
-  y += 8;
-
-  // Content — parse markdown and render
-  pdf.setFontSize(11);
-  const lines = content.split("\n");
-
-  for (const line of lines) {
-    // Check if we need a new page (buffer for footer)
-    if (y > pageHeight - margin - 10) {
-      pdf.addPage();
-      y = margin;
+  printWindow.document.write(`
+<!DOCTYPE html>
+<html dir="rtl" lang="fa">
+<head>
+  <meta charset="UTF-8">
+  <title>${title}</title>
+  <style>
+    @font-face {
+      font-family: 'Vazirmatn';
+      src: url('${origin}/fonts/Vazirmatn-Regular.ttf') format('truetype');
+      font-weight: normal;
     }
-
-    const trimmed = line.trim();
-
-    // Skip empty lines (but add spacing)
-    if (!trimmed) {
-      y += lineHeight * 0.5;
-      continue;
+    @font-face {
+      font-family: 'Vazirmatn';
+      src: url('${origin}/fonts/Vazirmatn-Regular.ttf') format('truetype');
+      font-weight: bold;
     }
-
-    const hasPersian = /[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(trimmed);
-
-    // Headings
-    if (trimmed.startsWith("### ")) {
-      if (base64Font) {
-        pdf.setFont("Vazirmatn", "bold");
-      } else {
-        pdf.setFont("helvetica", "bold");
-      }
-      pdf.setFontSize(12);
-      const text = trimmed.replace(/^###\s+/, "");
-      const wrapped = pdf.splitTextToSize(text, maxWidth);
-      wrapped.forEach((wrappedLine) => {
-        const processed = hasPersian ? processPersianText(wrappedLine) : wrappedLine;
-        const x = hasPersian ? pageWidth - margin : margin;
-        const align = hasPersian ? "right" : "left";
-        pdf.text(processed, x, y, { align });
-        y += lineHeight + 2;
-      });
-      if (base64Font) {
-        pdf.setFont("Vazirmatn", "normal");
-      } else {
-        pdf.setFont("helvetica", "normal");
-      }
-      pdf.setFontSize(11);
-    } else if (trimmed.startsWith("## ")) {
-      if (base64Font) {
-        pdf.setFont("Vazirmatn", "bold");
-      } else {
-        pdf.setFont("helvetica", "bold");
-      }
-      pdf.setFontSize(14);
-      const text = trimmed.replace(/^##\s+/, "");
-      const wrapped = pdf.splitTextToSize(text, maxWidth);
-      wrapped.forEach((wrappedLine) => {
-        const processed = hasPersian ? processPersianText(wrappedLine) : wrappedLine;
-        const x = hasPersian ? pageWidth - margin : margin;
-        const align = hasPersian ? "right" : "left";
-        pdf.text(processed, x, y, { align });
-        y += lineHeight + 3;
-      });
-      if (base64Font) {
-        pdf.setFont("Vazirmatn", "normal");
-      } else {
-        pdf.setFont("helvetica", "normal");
-      }
-      pdf.setFontSize(11);
-    } else if (trimmed.startsWith("# ")) {
-      if (base64Font) {
-        pdf.setFont("Vazirmatn", "bold");
-      } else {
-        pdf.setFont("helvetica", "bold");
-      }
-      pdf.setFontSize(16);
-      const text = trimmed.replace(/^#\s+/, "");
-      const wrapped = pdf.splitTextToSize(text, maxWidth);
-      wrapped.forEach((wrappedLine) => {
-        const processed = hasPersian ? processPersianText(wrappedLine) : wrappedLine;
-        const x = hasPersian ? pageWidth - margin : margin;
-        const align = hasPersian ? "right" : "left";
-        pdf.text(processed, x, y, { align });
-        y += lineHeight + 4;
-      });
-      if (base64Font) {
-        pdf.setFont("Vazirmatn", "normal");
-      } else {
-        pdf.setFont("helvetica", "normal");
-      }
-      pdf.setFontSize(11);
-    } else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
-      // Bullet point
-      const text = trimmed.replace(/^[-*]\s+/, "");
-      const wrapped = pdf.splitTextToSize(text, maxWidth - 8);
-      wrapped.forEach((wrappedLine) => {
-        const processed = hasPersian ? processPersianText(wrappedLine) : wrappedLine;
-        if (hasPersian) {
-          const bulletText = processed + "  •";
-          pdf.text(bulletText, pageWidth - margin, y, { align: "right" });
-        } else {
-          const bulletText = "  • " + processed;
-          pdf.text(bulletText, margin, y, { align: "left" });
-        }
-        y += lineHeight;
-      });
-    } else if (trimmed.startsWith("**") && trimmed.endsWith("**")) {
-      // Bold line
-      if (base64Font) {
-        pdf.setFont("Vazirmatn", "bold");
-      } else {
-        pdf.setFont("helvetica", "bold");
-      }
-      const text = trimmed.replace(/^\*\*|\*\*$/g, "");
-      const wrapped = pdf.splitTextToSize(text, maxWidth);
-      wrapped.forEach((wrappedLine) => {
-        const processed = hasPersian ? processPersianText(wrappedLine) : wrappedLine;
-        const x = hasPersian ? pageWidth - margin : margin;
-        const align = hasPersian ? "right" : "left";
-        pdf.text(processed, x, y, { align });
-        y += lineHeight;
-      });
-      if (base64Font) {
-        pdf.setFont("Vazirmatn", "normal");
-      } else {
-        pdf.setFont("helvetica", "normal");
-      }
-    } else {
-      // Normal text
-      const wrapped = pdf.splitTextToSize(trimmed, maxWidth);
-      wrapped.forEach((wrappedLine) => {
-        const processed = hasPersian ? processPersianText(wrappedLine) : wrappedLine;
-        const x = hasPersian ? pageWidth - margin : margin;
-        const align = hasPersian ? "right" : "left";
-        pdf.text(processed, x, y, { align });
-        y += lineHeight;
-      });
+    * { font-family: 'Vazirmatn', 'Noto Naskh Arabic', 'DejaVu Sans', sans-serif; }
+    body {
+      direction: rtl; text-align: right;
+      padding: 2cm; line-height: 1.8;
+      color: #1a1a1a; font-size: 12pt;
     }
-  }
-
-  // Footer with page numbers
-  const pageCount = pdf.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    pdf.setPage(i);
-    pdf.setFontSize(8);
-    if (base64Font) {
-      pdf.setFont("Vazirmatn", "normal");
-    } else {
-      pdf.setFont("helvetica", "normal");
+    h1 { font-size: 22pt; margin-top: 0; margin-bottom: 0.5em; }
+    h2 { font-size: 16pt; margin-top: 1.5em; }
+    h3 { font-size: 14pt; margin-top: 1.2em; }
+    p { margin: 0.5em 0; }
+    ul, ol { padding-right: 1.5em; padding-left: 0; }
+    li { margin: 0.3em 0; }
+    table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+    th, td { border: 1px solid #ccc; padding: 8px 12px; text-align: right; }
+    th { background: #f0f0f0; }
+    .toolbar {
+      text-align: center; padding: 20px 0; border-bottom: 2px solid #eee;
+      margin-bottom: 20px;
     }
-    pdf.setTextColor(150, 150, 150);
-    pdf.text(
-      `Page ${i} / ${pageCount}`,
-      pageWidth / 2,
-      pageHeight - 10,
-      { align: "center" }
-    );
-  }
+    .btn-pdf {
+      background: #2563eb; color: white; border: none;
+      padding: 12px 32px; font-size: 16px; border-radius: 8px;
+      cursor: pointer; font-family: 'Vazirmatn', sans-serif;
+    }
+    .btn-pdf:hover { background: #1d4ed8; }
+    .btn-pdf svg { vertical-align: middle; margin-left: 8px; }
+    @media print {
+      @page { margin: 2cm; }
+      body { padding: 0; }
+      .toolbar { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn-pdf" onclick="window.print()">
+      📥 دریافت PDF / Save as PDF
+    </button>
+    <p style="color:#666;font-size:10pt;margin-top:8px">
+      روی دکمه کلیک کن، سپس در پنجره باز شده «Save as PDF» را انتخاب کن
+    </p>
+  </div>
+  <h1>${title}</h1>
+  <div id="content"></div>
+  <script>
+    const contentDiv = document.getElementById('content');
+    const md = ${JSON.stringify(content)};
+    
+    let html = md
+      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+      .replace(/^# (.+)$/gm, '<h1 style="font-size:18pt">$1</h1>')
+      .replace(/^\\*\\*(.+)\\*\\*$/gm, '<strong>$1</strong>')
+      .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
+      .replace(/\\n{2,}/g, '</p><p>')
+      .replace(/\\n/g, '<br>');
+    
+    html = html.replace(/(<li>.*<\\/li>(\\s*<li>.*<\\/li>)*)/g, '<ul>$1</ul>');
+    contentDiv.innerHTML = '<p>' + html + '</p>';
+  </script>
+</body>
+</html>
+  `);
 
-  pdf.save(`${filename}.pdf`);
+  printWindow.document.close();
 }
 
 // ============================================================
@@ -327,186 +160,73 @@ export async function exportTableToPDF(
   title: string,
   columns: { key: string; label: string }[],
   rows: Record<string, unknown>[],
-  filename: string
+  _filename: string
 ) {
-  const pdf = new jsPDF({
-    orientation: "landscape",
-    unit: "mm",
-    format: "a4",
-  });
+  // Use browser print-to-PDF with HTML table for reliable Persian/RTL support
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) return;
 
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-  const margin = 15;
-  const maxWidth = pageWidth - margin * 2;
+  const origin = window.location.origin;
 
-  const base64Font = await loadVazirmatnFont();
-  if (base64Font) {
-    pdf.addFileToVFS("Vazirmatn-Regular.ttf", base64Font);
-    pdf.addFont("Vazirmatn-Regular.ttf", "Vazirmatn", "normal");
-    pdf.addFont("Vazirmatn-Regular.ttf", "Vazirmatn", "bold");
-    pdf.setFont("Vazirmatn", "normal");
-  } else {
-    pdf.setFont("helvetica", "normal");
-  }
+  const tableRows = rows
+    .map(
+      (row) =>
+        `<tr>${columns
+          .map(
+            (col) =>
+              `<td style="border:1px solid #ccc;padding:6px 10px;text-align:right">${String(
+                row[col.key] ?? ""
+              )}</td>`
+          )
+          .join("")}</tr>`
+    )
+    .join("\n");
 
-  // Title
-  const hasTitlePersian = /[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(title);
-  pdf.setFontSize(16);
-  if (base64Font) {
-    pdf.setFont("Vazirmatn", "bold");
-  } else {
-    pdf.setFont("helvetica", "bold");
-  }
-  const processedTitle = hasTitlePersian ? processPersianText(title) : title;
-  pdf.text(processedTitle, hasTitlePersian ? pageWidth - margin : margin, 20, {
-    align: hasTitlePersian ? "right" : "left",
-  });
+  const headerRow = `<tr>${columns
+    .map(
+      (col) =>
+        `<th style="border:1px solid #ccc;padding:8px 12px;text-align:right;background:#f0f0f0;font-weight:bold">${col.label}</th>`
+    )
+    .join("")}</tr>`;
 
-  // Date
-  pdf.setFontSize(9);
-  if (base64Font) {
-    pdf.setFont("Vazirmatn", "normal");
-  } else {
-    pdf.setFont("helvetica", "normal");
-  }
-  pdf.setTextColor(128, 128, 128);
-  pdf.text(
-    `Generated: ${new Date().toLocaleString("en-GB")}`,
-    margin,
-    26
-  );
-  pdf.setTextColor(0, 0, 0);
-
-  // Table
-  const tableStartY = 32;
-  const colCount = columns.length;
-  const colWidth = maxWidth / colCount;
-  const rowHeight = 8;
-  const headerHeight = 10;
-
-  let y = tableStartY;
-
-  // Header background
-  pdf.setFillColor(240, 240, 240);
-  pdf.rect(margin, y, maxWidth, headerHeight, "F");
-
-  // Header text
-  pdf.setFontSize(10);
-  if (base64Font) {
-    pdf.setFont("Vazirmatn", "bold");
-  } else {
-    pdf.setFont("helvetica", "bold");
-  }
-  columns.forEach((col, i) => {
-    const label = col.label;
-    const hasPersian = /[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(label);
-    const processedText = hasPersian ? processPersianText(label) : label;
-
-    const wrapped = pdf.splitTextToSize(processedText, colWidth - 4);
-    const textToDraw = wrapped[0] || "";
-
-    if (hasPersian) {
-      pdf.text(textToDraw, margin + (i + 1) * colWidth - 2, y + 7, { align: "right" });
-    } else {
-      pdf.text(textToDraw, margin + i * colWidth + 2, y + 7, { align: "left" });
+  printWindow.document.write(`
+<!DOCTYPE html>
+<html dir="rtl" lang="fa">
+<head>
+  <meta charset="UTF-8">
+  <title>${title}</title>
+  <style>
+    @font-face {
+      font-family: 'Vazirmatn';
+      src: url('${origin}/fonts/Vazirmatn-Regular.ttf') format('truetype');
     }
-  });
-  y += headerHeight;
-
-  // Rows
-  if (base64Font) {
-    pdf.setFont("Vazirmatn", "normal");
-  } else {
-    pdf.setFont("helvetica", "normal");
-  }
-  pdf.setFontSize(9);
-
-  for (const row of rows) {
-    if (y > pageHeight - 20) {
-      pdf.addPage();
-      y = margin;
-
-      // Repeat header
-      pdf.setFillColor(240, 240, 240);
-      pdf.rect(margin, y, maxWidth, headerHeight, "F");
-      if (base64Font) {
-        pdf.setFont("Vazirmatn", "bold");
-      } else {
-        pdf.setFont("helvetica", "bold");
-      }
-      pdf.setFontSize(10);
-      columns.forEach((col, i) => {
-        const label = col.label;
-        const hasPersian = /[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(label);
-        const processedText = hasPersian ? processPersianText(label) : label;
-
-        const wrapped = pdf.splitTextToSize(processedText, colWidth - 4);
-        const textToDraw = wrapped[0] || "";
-
-        if (hasPersian) {
-          pdf.text(textToDraw, margin + (i + 1) * colWidth - 2, y + 7, { align: "right" });
-        } else {
-          pdf.text(textToDraw, margin + i * colWidth + 2, y + 7, { align: "left" });
-        }
-      });
-      y += headerHeight;
-      if (base64Font) {
-        pdf.setFont("Vazirmatn", "normal");
-      } else {
-        pdf.setFont("helvetica", "normal");
-      }
-      pdf.setFontSize(9);
+    * { font-family: 'Vazirmatn', 'Noto Naskh Arabic', 'DejaVu Sans', sans-serif; }
+    body { direction: rtl; text-align: right; padding: 2cm; color: #1a1a1a; }
+    h1 { font-size: 18pt; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+    th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: right; }
+    th { background: #f0f0f0; font-weight: bold; }
+    .toolbar { text-align: center; padding: 20px 0; border-bottom: 2px solid #eee; margin-bottom: 20px; }
+    .btn-pdf {
+      background: #2563eb; color: white; border: none;
+      padding: 12px 32px; font-size: 16px; border-radius: 8px;
+      cursor: pointer; font-family: 'Vazirmatn', sans-serif;
     }
-
-    // Alternate row background
-    if (Math.floor((y - tableStartY - headerHeight) / rowHeight) % 2 === 0) {
-      pdf.setFillColor(249, 249, 249);
-      pdf.rect(margin, y, maxWidth, rowHeight, "F");
-    }
-
-    columns.forEach((col, i) => {
-      const value = String(row[col.key] ?? "");
-      const hasPersian = /[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(value);
-      const processedText = hasPersian ? processPersianText(value) : value;
-
-      const wrapped = pdf.splitTextToSize(processedText, colWidth - 4);
-      const textToDraw = wrapped[0] || "";
-
-      if (hasPersian) {
-        pdf.text(textToDraw, margin + (i + 1) * colWidth - 2, y + 6, { align: "right" });
-      } else {
-        pdf.text(textToDraw, margin + i * colWidth + 2, y + 6, { align: "left" });
-      }
-    });
-
-    y += rowHeight;
-  }
-
-  // Border
-  pdf.setDrawColor(200, 200, 200);
-  pdf.rect(margin, tableStartY, maxWidth, y - tableStartY);
-
-  // Page numbers
-  const pageCount = pdf.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    pdf.setPage(i);
-    pdf.setFontSize(8);
-    if (base64Font) {
-      pdf.setFont("Vazirmatn", "normal");
-    } else {
-      pdf.setFont("helvetica", "normal");
-    }
-    pdf.setTextColor(150, 150, 150);
-    pdf.text(
-      `Page ${i} / ${pageCount}`,
-      pageWidth / 2,
-      pageHeight - 8,
-      { align: "center" }
-    );
-  }
-
-  pdf.save(`${filename}.pdf`);
+    .btn-pdf:hover { background: #1d4ed8; }
+    @media print { @page { margin: 1.5cm; } body { padding: 0; } .toolbar { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn-pdf" onclick="window.print()">📥 دریافت PDF / Save as PDF</button>
+    <p style="color:#666;font-size:10pt;margin-top:8px">روی دکمه کلیک کن، سپس «Save as PDF» را انتخاب کن</p>
+  </div>
+  <h1>${title}</h1>
+  <table>${headerRow}${tableRows}</table>
+</body>
+</html>
+  `);
+  printWindow.document.close();
 }
 
 // ============================================================
