@@ -91,8 +91,13 @@ export function chunkText(
 export async function extractEntities(text: string): Promise<ExtractedEntity[]> {
   if (!text || text.trim().length < 50) return [];
 
-  // Use first 6000 chars for entity extraction (typical context window)
-  const truncated = text.slice(0, 8000);
+  // Clean text: remove problematic Unicode control chars that confuse LLMs
+  const cleaned = text
+    .replace(/[\u200b-\u200f\u202a-\u202e\ufeff]/g, "") // ZWJ/ZWNJ/LRM/RLM/BOM
+    .replace(/\u0000/g, "") // null chars
+    .trim();
+  // Use first 8000 chars for entity extraction
+  const truncated = cleaned.slice(0, 8000);
 
   const result = await chatCompletionJson<{ entities: ExtractedEntity[] }>({
     messages: [
@@ -119,7 +124,12 @@ export async function extractClaims(
 ): Promise<ExtractedClaim[]> {
   if (!text || text.trim().length < 50) return [];
 
-  const truncated = text.slice(0, 8000);
+  // Clean text: remove problematic Unicode control chars that confuse LLMs
+  const cleaned = text
+    .replace(/[\u200b-\u200f\u202a-\u202e\ufeff]/g, "")
+    .replace(/\u0000/g, "")
+    .trim();
+  const truncated = cleaned.slice(0, 8000);
 
   const result = await chatCompletionJson<{ claims: ExtractedClaim[] }>({
     messages: [
@@ -129,6 +139,8 @@ export async function extractClaims(
         content: `Extract factual claims from the following text.
 ${knownEntityNames.length > 0 ? `\nKnown entities (use these exact names when applicable): ${knownEntityNames.join(", ")}` : ""}
 
+Return JSON: { "claims": [{ "statement": "...", "excerpt": "...", "entityNames": [...], "type": "fact|assertion|prediction|opinion", "confidence": 0.9 }] }
+
 Text:
 ---
 ${truncated}
@@ -136,7 +148,7 @@ ${truncated}
       },
     ],
     temperature: 0.1,
-    maxTokens: 3000,
+    maxTokens: 6000,
   }, providerConfig());
 
   return result.claims || [];
@@ -148,11 +160,15 @@ ${truncated}
 
 export async function extractRelationships(
   text: string,
-  entities: ExtractedEntity[]
+  entities: ExtractedEntity[] = []
 ): Promise<ExtractedRelationship[]> {
   if (!text || entities.length < 2) return [];
 
-  const truncated = text.slice(0, 6000);
+  const cleaned = text
+    .replace(/[\u200b-\u200f\u202a-\u202e\ufeff]/g, "")
+    .replace(/\u0000/g, "")
+    .trim();
+  const truncated = cleaned.slice(0, 6000);
   const entityList = entities.map((e) => `- ${e.name} (${e.type})`).join("\n");
 
   const result = await chatCompletionJson<{
@@ -190,7 +206,11 @@ export async function extractTimelineEvents(
 ): Promise<ExtractedTimelineEvent[]> {
   if (!text || text.trim().length < 50) return [];
 
-  const truncated = text.slice(0, 8000);
+  const cleaned = text
+    .replace(/[\u200b-\u200f\u202a-\u202e\ufeff]/g, "")
+    .replace(/\u0000/g, "")
+    .trim();
+  const truncated = cleaned.slice(0, 8000);
 
   const result = await chatCompletionJson<{ events: ExtractedTimelineEvent[] }>({
     messages: [
@@ -320,7 +340,7 @@ export async function generateReport(
 
   const report = await chatCompletion({
     messages: [
-      { role: "system", content: PROMPTS.reportExecutive.system },
+      { role: "system", content: getReportPrompt(type) },
       {
         role: "user",
         content: `Generate a ${type.replace(/_/g, " ")} report in Persian Markdown for the following research workspace.
@@ -367,6 +387,7 @@ export interface ChatContext {
   relevantRelationships: { source: string; target: string; type: string }[];
   timelineEvents: { title: string; eventDate: string | null; description: string | null }[];
   conversationHistory: { role: string; content: string }[];
+  relevantChunks?: { content: string; sourceTitle: string; score: number }[];
 }
 
 export async function answerWithKnowledgeBase(
@@ -380,6 +401,13 @@ export async function answerWithKnowledgeBase(
    شاهد: "${c.excerpt}" — از: ${c.sourceTitle}`
     )
     .join("\n");
+
+  const chunksText = context.relevantChunks
+    ?.map(
+      (ch, i) =>
+        `[متن منبع ${i + 1}] (سند: "${ch.sourceTitle}", شباهت: ${Math.round(ch.score * 100)}%)\n${ch.content.slice(0, 1000)}`
+    )
+    .join("\n\n") || "";
 
   const entitiesText = context.relevantEntities
     .map((e) => `- ${e.name} (${e.type}): ${e.description || ""}`)
@@ -414,6 +442,9 @@ Research goal: ${context.researchGoal || "تعیین نشده"}
 CLAIMS AND EVIDENCE:
 ${claimsText || "ادعایی در دسترس نیست."}
 
+SOURCE TEXTS (بخش‌هایی از اسناد):
+${chunksText || "متن مبدأی در دسترس نیست."}
+
 ENTITIES:
 ${entitiesText || "موجودیتی در دسترس نیست."}
 
@@ -437,4 +468,26 @@ Answer the question using ONLY the knowledge base context above. If the context 
   }, providerConfig());
 
   return answer;
+}
+
+/**
+ * Select the right system prompt based on report type.
+ */
+function getReportPrompt(type: string): string {
+  switch (type) {
+    case "company_report":
+      return PROMPTS.reportCompany.system;
+    case "person_report":
+      return PROMPTS.reportPerson.system;
+    case "organization_report":
+      return PROMPTS.reportOrganization.system;
+    case "investment_report":
+      return PROMPTS.reportInvestment.system;
+    case "market_report":
+      return PROMPTS.reportMarket.system;
+    case "research_summary":
+      return PROMPTS.reportResearch.system;
+    default:
+      return PROMPTS.reportExecutive.system;
+  }
 }

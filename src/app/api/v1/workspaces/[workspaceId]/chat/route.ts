@@ -257,6 +257,11 @@ export async function POST(
         workspaceName: conversation.workspace.name,
         researchGoal: conversation.workspace.researchGoal || "",
         relevantClaims: claimContext,
+        relevantChunks: similarChunks.map((ch) => ({
+          content: ch.content,
+          sourceTitle: ch.sourceTitle || "بدون عنوان",
+          score: ch.score,
+        })),
         relevantEntities: allEntities.map((e) => ({
           id: e.id,
           name: e.name,

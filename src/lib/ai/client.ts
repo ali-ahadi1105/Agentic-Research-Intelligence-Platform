@@ -172,8 +172,11 @@ export async function chatCompletionJson<T>(
     .replace(/\s*```$/i, "")
     .trim();
 
+  // Remove problematic Unicode control chars that can break JSON.parse
+  const safeJson = cleaned.replace(/[\u0000-\u001f\u200b-\u200f\u202a-\u202e\ufeff]/g, "");
+
   try {
-    return JSON.parse(cleaned) as T;
+    return JSON.parse(safeJson) as T;
   } catch {
     // Try to find the last complete JSON object by progressively trimming
     // (handles truncated responses from LLM)
@@ -183,6 +186,8 @@ export async function chatCompletionJson<T>(
       let jsonStr = match[0];
       // Remove trailing commas
       jsonStr = jsonStr.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]");
+      // Remove problematic Unicode control chars
+      jsonStr = jsonStr.replace(/[\u0000-\u001f\u200b-\u200f\u202a-\u202e\ufeff]/g, "");
       try {
         return JSON.parse(jsonStr) as T;
       } catch {

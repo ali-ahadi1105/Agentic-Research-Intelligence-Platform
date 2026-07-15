@@ -132,7 +132,11 @@ export async function semanticSearch(
 
     if (queryEmbedding.length > 0 && (await getEmbeddingCount()) > 0) {
       // Use sqlite-vec for native vector search (very fast)
-      const vectorResults = await searchSimilar(queryEmbedding, limit * 2); // fetch extra in case some don't belong to this workspace
+      const vectorResults = await searchSimilar(queryEmbedding, limit * 2).catch((err) => {
+        // Handle dimension mismatch: if the query embedding model differs from chunk embedding model
+        console.warn("[SemanticSearch] Vector search query failed (dimension mismatch?), falling back to keyword:", err.message?.slice(0, 150));
+        return [] as VectorSearchResult[];
+      }); // fetch extra in case some don't belong to this workspace
 
       if (vectorResults.length > 0) {
         // Fetch chunk details from Prisma, filtered by workspace

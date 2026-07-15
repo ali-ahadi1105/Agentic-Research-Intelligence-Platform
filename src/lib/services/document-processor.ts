@@ -3,8 +3,14 @@
  *
  * Convert every source into normalized machine-readable content.
  * Extracts text from various file formats: txt, markdown, pdf, docx, html, etc.
+ *
+ * PDF extraction uses system pdftotext (poppler-utils) which handles
+ * compressed streams, Persian/Arabic text, and multi-page documents reliably.
+ * Must have poppler-utils installed: apt install poppler-utils
  */
 import "server-only";
+import { execSync } from "child_process";
+import { writeFileSync, unlinkSync } from "fs";
 
 /**
  * Extract text content from an uploaded file based on MIME type.
@@ -38,10 +44,10 @@ export async function extractTextFromFile(
     };
   }
 
-  // PDF — try to extract via Buffer text scan (basic)
+  // PDF — extract via pdftotext (poppler-utils)
   if (mimeType === "application/pdf" || file.name.endsWith(".pdf")) {
     const arrayBuffer = await file.arrayBuffer();
-    const text = extractTextFromPdf(arrayBuffer);
+    const text = await extractTextFromPdf(arrayBuffer);
     return {
       content: text,
       language: detectLanguage(text),
@@ -107,40 +113,32 @@ export async function extractTextFromFile(
 }
 
 /**
- * Basic PDF text extraction by scanning content streams.
- * Note: For production use, use pdf-parse or pdfjs-dist.
+ * PDF text extraction via system pdftotext (poppler-utils).
+ *
+ * Handles all PDF types: compressed streams, Persian/Arabic text,
+ * multi-page documents, embedded fonts — everything the basic
+ * regex approach missed.
+ *
+ * Writes the buffer to a temp file, calls pdftotext, captures stdout.
  */
-function extractTextFromPdf(buffer: ArrayBuffer): string {
-  // PDFs store text in BT...ET blocks with Tj/TJ operators
-  // This is a very basic extraction that gets readable ASCII text
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
+async function extractTextFromPdf(buffer: ArrayBuffer): Promise<string> {
+  const tmpInput = `/tmp/pdf-upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.pdf`;
 
-  // Extract text between parentheses in Tj operators
-  const texts: string[] = [];
-  const regex = /\(([^)]*)\)\s*Tj/g;
-  let match;
-  while ((match = regex.exec(binary)) !== null) {
-    if (match[1] && match[1].length > 0) {
-      texts.push(match[1]);
-    }
+  try {
+    writeFileSync(tmpInput, Buffer.from(buffer));
+    const text = execSync(`pdftotext -nopgbrk "${tmpInput}" -`, {
+      encoding: "utf-8",
+      timeout: 60_000,
+      maxBuffer: 100 * 1024 * 1024, // 100 MB
+    });
+    return text.trim() || `[PDF — اندازه: ${(buffer.byteLength / 1024).toFixed(1)} کیلوبایت. متنی استخراج نشد.]`;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("[PDF] pdftotext extraction failed:", msg);
+    return `[PDF — خطا در استخراج متن: ${msg.slice(0, 200)}]`;
+  } finally {
+    try { unlinkSync(tmpInput); } catch { /* ignore */ }
   }
-
-  // Also try TJ arrays
-  const tjRegex = /\[([^\]]*)\]\s*TJ/g;
-  while ((match = tjRegex.exec(binary)) !== null) {
-    const inner = match[1];
-    const innerMatch = inner.match(/\(([^)]*)\)/g);
-    if (innerMatch) {
-      texts.push(innerMatch.map((s) => s.slice(1, -1)).join(" "));
-    }
-  }
-
-  const text = texts.join(" ").replace(/\\[nr()]/g, " ").trim();
-  return text || `[PDF — اندازه: ${(buffer.byteLength / 1024).toFixed(1)} کیلوبایت. متن قابل استخراج نبود.]`;
 }
 
 /**

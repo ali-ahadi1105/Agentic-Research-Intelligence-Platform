@@ -148,12 +148,16 @@ export async function processSourceKnowledge(sourceId: string): Promise<void> {
         },
       });
 
+      // Find which chunk contains the excerpt (so evidence links back to a chunk for RAG)
+      const matchedChunkId = findChunkForExcerpt(chunks, chunkIds, claim.excerpt);
+
       // Link evidence
       await db.evidence.create({
         data: {
           claimId: createdClaim.id,
           sourceId,
           documentId: source.document.id,
+          chunkId: matchedChunkId,
           excerpt: claim.excerpt,
           confidence: claim.confidence,
           authoredBy: "ai",
@@ -349,4 +353,54 @@ function deduplicateEntities(entities: ExtractedEntity[]): ExtractedEntity[] {
     }
   }
   return Array.from(seen.values());
+}
+
+/**
+ * Find which chunk contains a given excerpt text.
+ * Returns the chunk's DB id, or null if no match found.
+ * Uses longest common substring heuristic when exact match fails.
+ */
+function findChunkForExcerpt(
+  chunkTexts: string[],
+  chunkIds: string[],
+  excerpt: string
+): string | null {
+  if (!excerpt || chunkTexts.length === 0) return null;
+
+  const excerptTrimmed = excerpt.trim();
+
+  // 1) Exact substring match
+  for (let i = 0; i < chunkTexts.length; i++) {
+    if (chunkTexts[i].includes(excerptTrimmed)) {
+      return chunkIds[i];
+    }
+  }
+
+  // 2) Fuzzy: longest common substring (LCS) heuristic
+  let bestIdx = -1;
+  let bestLen = 0;
+  for (let i = 0; i < chunkTexts.length; i++) {
+    const chunk = chunkTexts[i];
+    const short = excerptTrimmed.length < chunk.length ? excerptTrimmed : chunk;
+    const long = excerptTrimmed.length < chunk.length ? chunk : excerptTrimmed;
+    // Find the longest substring of 'short' that appears in 'long'
+    for (let start = 0; start < short.length; start++) {
+      for (let end = start + bestLen + 1; end <= short.length; end++) {
+        const sub = short.slice(start, end);
+        if (long.includes(sub)) {
+          bestLen = sub.length;
+          bestIdx = i;
+        } else {
+          break; // no need to extend further from this start
+        }
+      }
+    }
+  }
+
+  if (bestIdx >= 0 && bestLen > 10) {
+    return chunkIds[bestIdx];
+  }
+
+  console.warn(`[Pipeline] Could not match excerpt to any chunk: "${excerptTrimmed.slice(0, 80)}..."`);
+  return null;
 }

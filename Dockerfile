@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     openssl \
     curl \
     git \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Bun
@@ -46,6 +47,7 @@ FROM node:20-slim AS production
 RUN apt-get update && apt-get install -y \
     openssl \
     curl \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

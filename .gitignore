@@ -97,3 +97,4 @@ scratch_*.js
 
 # Sharp cache (image optimization)
 .cache/
+.worktrees/
