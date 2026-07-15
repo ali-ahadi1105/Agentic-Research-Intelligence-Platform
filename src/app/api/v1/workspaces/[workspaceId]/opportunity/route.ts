@@ -19,11 +19,11 @@ const OPPORTUNITY_TYPE_LABELS: Record<string, string> = {
   investment_fit: "تناسب سرمایه‌گذاری",
   collaboration: "فرصت همکاری",
   entry_strategy: "استراتژی ورود",
-  risk_analysis: "تحلیل ریسک",
-  swot: "تحلیل SWOT",
-  pitch: "پیشنهاد پیچ",
+  risk_analysis: "ریسک",
+  swot: "SWOT",
+  pitch: "پیچ",
   decision_makers: "تصمیم‌گیرندگان",
-  general: "تحلیل عمومی",
+  general: "عمومی",
 };
 
 /**
