@@ -12,6 +12,7 @@ import {
 } from "@/lib/services/api-helpers";
 import { generateOpportunityAnalysis, type OpportunityContext } from "@/lib/ai/agents";
 import { AuditLog } from "@/lib/services/audit";
+import { semanticSearch } from "@/lib/services/semantic-search";
 
 const OPPORTUNITY_TYPE_LABELS: Record<string, string> = {
   organization_fit: "تناسب سازمانی",
@@ -131,6 +132,10 @@ export async function POST(
       orderBy: { createdAt: "desc" },
     });
 
+    // Fetch relevant chunks for richer context
+    const query = workspace?.researchGoal || type.replace(/_/g, " ");
+    const similarChunks = await semanticSearch(workspaceId, query, 5).catch(() => []);
+
     const analysisContext: OpportunityContext = {
       workspaceName: workspace?.name || "نامشخص",
       researchGoal: workspace?.researchGoal || "",
@@ -160,6 +165,11 @@ export async function POST(
         eventDate: t.eventDate ? t.eventDate.toISOString() : null,
       })),
       sources: sources.map((s) => ({ title: s.title, type: s.type })),
+      relevantChunks: similarChunks.map((ch) => ({
+        content: ch.content,
+        sourceTitle: ch.sourceTitle || "بدون عنوان",
+        score: ch.score,
+      })),
     };
 
     const contentMarkdown = await generateOpportunityAnalysis(type, analysisContext);

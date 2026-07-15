@@ -12,6 +12,7 @@ import {
 } from "@/lib/services/api-helpers";
 import { generateReport, type ReportContext } from "@/lib/ai/agents";
 import { AuditLog } from "@/lib/services/audit";
+import { semanticSearch } from "@/lib/services/semantic-search";
 
 export async function GET(
   request: NextRequest,
@@ -110,6 +111,10 @@ export async function POST(
       orderBy: { createdAt: "desc" },
     });
 
+    // Fetch relevant chunks for richer context
+    const query = workspace?.researchGoal || type.replace(/_/g, " ");
+    const similarChunks = await semanticSearch(workspaceId, query, 5).catch(() => []);
+
     const reportContext: ReportContext = {
       workspaceName: workspace?.name || "نامشخص",
       researchGoal: workspace?.researchGoal || "",
@@ -139,6 +144,11 @@ export async function POST(
         eventDate: t.eventDate ? t.eventDate.toISOString() : null,
       })),
       sources: sources.map((s) => ({ title: s.title, type: s.type })),
+      relevantChunks: similarChunks.map((ch) => ({
+        content: ch.content,
+        sourceTitle: ch.sourceTitle || "بدون عنوان",
+        score: ch.score,
+      })),
     };
 
     const contentMarkdown = await generateReport(type, reportContext);

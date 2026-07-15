@@ -295,6 +295,7 @@ export interface ReportContext {
   evidence: { excerpt: string; sourceTitle: string }[];
   timelineEvents: { title: string; description: string | null; eventDate: string | null }[];
   sources: { title: string; type: string }[];
+  relevantChunks?: { content: string; sourceTitle: string; score: number }[];
 }
 
 export async function generateReport(
@@ -338,6 +339,14 @@ export async function generateReport(
     .map((s) => `- ${s.title} (${s.type})`)
     .join("\n");
 
+  const chunksText = context.relevantChunks
+    ?.slice(0, 5)
+    .map(
+      (ch, i) =>
+        `[متن منبع ${i + 1}] (سند: "${ch.sourceTitle}", شباهت: ${Math.round(ch.score * 100)}%)\n${ch.content.slice(0, 1500)}`
+    )
+    .join("\n\n") || "";
+
   const report = await chatCompletion({
     messages: [
       { role: "system", content: getReportPrompt(type) },
@@ -358,6 +367,9 @@ ${claimsText || "ادعایی ثبت نشده است."}
 
 EVIDENCE:
 ${evidenceText || "شواهدی ثبت نشده است."}
+
+SOURCE TEXTS (بخش‌هایی از اسناد):
+${chunksText || "متن مبدأی در دسترس نیست."}
 
 TIMELINE EVENTS:
 ${timelineText || "رویدادی ثبت نشده است."}
@@ -505,6 +517,7 @@ export interface OpportunityContext {
   evidence: { excerpt: string; sourceTitle: string }[];
   timelineEvents: { title: string; description: string | null; eventDate: string | null }[];
   sources: { title: string; type: string }[];
+  relevantChunks?: { content: string; sourceTitle: string; score: number }[];
 }
 
 /**
@@ -552,6 +565,14 @@ export async function generateOpportunityAnalysis(
     .map((s) => `- ${s.title} (${s.type})`)
     .join("\n");
 
+  const chunksText = context.relevantChunks
+    ?.slice(0, 5)
+    .map(
+      (ch, i) =>
+        `[متن منبع ${i + 1}] (سند: "${ch.sourceTitle}", شباهت: ${Math.round(ch.score * 100)}%)\n${ch.content.slice(0, 1500)}`
+    )
+    .join("\n\n") || "";
+
   const analysis = await chatCompletion({
     messages: [
       { role: "system", content: PROMPTS.opportunityAnalysis.system },
@@ -573,6 +594,9 @@ ${claimsText || "ادعایی ثبت نشده است."}
 
 EVIDENCE:
 ${evidenceText || "شواهدی ثبت نشده است."}
+
+SOURCE TEXTS (بخش‌هایی از اسناد):
+${chunksText || "متن مبدأی در دسترس نیست."}
 
 TIMELINE EVENTS:
 ${timelineText || "رویدادی ثبت نشده است."}
