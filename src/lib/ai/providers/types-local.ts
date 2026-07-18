@@ -10,4 +10,5 @@ export interface ChatCompletionOptions {
   maxTokens?: number;
   model?: string;
   thinking?: boolean;
+  timeout?: number; // ms, default 60000
 }

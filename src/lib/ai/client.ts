@@ -73,21 +73,30 @@ export async function chatCompletion(
     "oc/deepseek-v4-flash-free";
 
   // Always use stream:false to get plain JSON response (avoids SSE parsing issues)
-  const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: options.messages,
-      temperature: options.temperature ?? 0.3,
-      max_tokens: options.maxTokens ?? 4000,
-      stream: false,
-      thinking: { type: "disabled" },  // prevent reasoning_content from consuming token budget
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), options.timeout || 180000);
+  let response;
+  try {
+    response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: options.messages,
+        temperature: options.temperature ?? 0.3,
+        max_tokens: options.maxTokens ?? 8000,
+        stream: false,
+      }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timeout);
+    throw new Error(`AI chat completion request failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+  }
+  clearTimeout(timeout);
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -111,7 +120,7 @@ export async function chatCompletion(
         model,
         messages: options.messages,
         temperature: options.temperature ?? 0.3,
-        max_tokens: 6000,
+        max_tokens: options.maxTokens ? options.maxTokens * 3 : 12000,
         stream: false,
       }),
     });
