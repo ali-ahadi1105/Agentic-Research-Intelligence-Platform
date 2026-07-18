@@ -43,21 +43,16 @@ async function getZaiForFallback() {
 
 /**
  * Generic LLM chat completion using the configured provider.
- * Optionally pass a userProviderConfig to use a user-specific provider.
- *
- * If the configured provider fails (e.g., API key not set, rate limit),
- * falls back to the z-ai-web-dev-sdk for chat completion.
+ * Includes automatic retry with exponential backoff for rate limits.
  */
 export async function chatCompletion(
   options: ChatCompletionOptions,
   userProviderConfig?: ProviderConfig
 ): Promise<string> {
-  // Determine provider config to get baseUrl and apiKey
   const provider = userProviderConfig
     ? getProvider(userProviderConfig)
     : getDefaultProvider();
 
-  // Extract connection details (provider private fields accessible at runtime)
   const baseUrl: string =
     (provider as any).baseUrl ||
     process.env.OPENAI_BASE_URL ||
@@ -65,82 +60,111 @@ export async function chatCompletion(
   const apiKey: string =
     (provider as any).apiKey ||
     process.env.OPENAI_API_KEY ||
-    "sk-a741cf4c3289b8c3-0ce41e-8795c0a0";
+    "sk-a74...c0a0";
   const model: string =
     options.model ||
     (provider as any).defaultModel ||
     process.env.OPENAI_CHAT_MODEL ||
     "oc/deepseek-v4-flash-free";
 
-  // Always use stream:false to get plain JSON response (avoids SSE parsing issues)
-  const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: options.messages,
-      temperature: options.temperature ?? 0.3,
-      max_tokens: options.maxTokens ?? 4000,
-      stream: false,
-      thinking: { type: "disabled" },  // prevent reasoning_content from consuming token budget
-    }),
-  });
+  const maxRetries = 4;
+  const baseDelay = 2000;
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`AI chat completion HTTP error (${response.status}): ${errorText.slice(0, 300)}`);
-  }
-
-  const contentType = response.headers.get("content-type") || "";
-
-  if (contentType.includes("application/json")) {
-    const data = await response.json();
-    const choice = data.choices?.[0];
-    const content: string = choice?.message?.content || "";
-    if (content) return content;
-
-    // content is null (thinking mode consumed token budget) — retry once with more tokens
-    console.warn("[AI] Empty content (thinking mode?), retrying with increased max_tokens...");
-    const retry = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model,
-        messages: options.messages,
-        temperature: options.temperature ?? 0.3,
-        max_tokens: 6000,
-        stream: false,
-      }),
-    });
-    if (retry.ok) {
-      const retryData = await retry.json();
-      const retryContent: string = retryData.choices?.[0]?.message?.content || "";
-      if (retryContent) return retryContent;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    if (attempt > 0) {
+      const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), 15000);
+      console.warn(`[AI] Retry ${attempt}/${maxRetries - 1} after ${delay}ms...`);
+      await new Promise(r => setTimeout(r, delay));
     }
-    return "";  // let chatCompletionJson handle gracefully
-  }
 
-  // Fallback: server returned SSE despite stream:false — parse it
-  const text = await response.text();
-  let fullContent = "";
-  for (const line of text.split("\n")) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith("data: ") && trimmed !== "data: [DONE]") {
-      try {
-        const chunk = JSON.parse(trimmed.slice(6));
-        const c = chunk.choices?.[0]?.delta?.content;
-        if (c) fullContent += c;
-      } catch {}
+    try {
+      const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: options.messages,
+          temperature: options.temperature ?? 0.3,
+          max_tokens: options.maxTokens ?? 4000,
+          stream: false,
+          thinking: { type: "disabled" },
+        }),
+      });
+
+      // Retry on rate limit (429) or server overload (502/503)
+      if (response.status === 429 || response.status === 502 || response.status === 503) {
+        const errorText = await response.text();
+        console.warn(`[AI] Retryable status ${response.status}, attempt ${attempt + 1}/${maxRetries}`);
+        if (attempt === maxRetries - 1) {
+          throw new Error(`AI chat completion HTTP error (${response.status}): ${errorText.slice(0, 300)}`);
+        }
+        continue;
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`AI chat completion HTTP error (${response.status}): ${errorText.slice(0, 300)}`);
+      }
+
+      const contentType = response.headers.get("content-type") || "";
+
+      if (contentType.includes("application/json")) {
+        const data = await response.json();
+        const choice = data.choices?.[0];
+        const content: string = choice?.message?.content || "";
+        if (content) return content;
+
+        console.warn("[AI] Empty content, retrying with increased max_tokens...");
+        const retry = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify({
+            model,
+            messages: options.messages,
+            temperature: options.temperature ?? 0.3,
+            max_tokens: 6000,
+            stream: false,
+          }),
+        });
+        if (retry.ok) {
+          const retryData = await retry.json();
+          const retryContent: string = retryData.choices?.[0]?.message?.content || "";
+          if (retryContent) return retryContent;
+        }
+        return "";
+      }
+
+      // Fallback: SSE despite stream:false
+      const text = await response.text();
+      let fullContent = "";
+      for (const line of text.split("\n")) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("data: ") && trimmed !== "data: [DONE]") {
+          try {
+            const chunk = JSON.parse(trimmed.slice(6));
+            const c = chunk.choices?.[0]?.delta?.content;
+            if (c) fullContent += c;
+          } catch { /* skip */ }
+        }
+      }
+      if (fullContent) return fullContent;
+      throw new Error("AI chat completion: empty SSE stream");
+    } catch (err) {
+      if (attempt === maxRetries - 1) throw err;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("fetch failed") || msg.includes("network") ||
+          msg.includes("timeout") || msg.includes("retry") || msg.includes("503") || msg.includes("429")) {
+        console.warn(`[AI] Transient error, retry ${attempt + 1}/${maxRetries}`);
+        continue;
+      }
+      throw err;
     }
   }
 
-  if (!fullContent) {
-    throw new Error("AI chat completion: empty SSE stream");
-  }
-  return fullContent;
+  throw new Error("AI chat completion: max retries exceeded");
 }
 
 /**
