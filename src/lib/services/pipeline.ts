@@ -16,6 +16,9 @@ import {
   extractTimelineEvents,
   chunkText,
   type ExtractedEntity,
+  type ExtractedClaim,
+  type ExtractedRelationship,
+  type ExtractedTimelineEvent,
 } from "../ai/agents";
 import { continuousUpdate } from "./continuous-updates";
 
@@ -70,14 +73,19 @@ export async function processSourceKnowledge(sourceId: string): Promise<void> {
       // Don't fail the pipeline — semantic search will fall back to keyword matching
     });
 
-    // Stage 2: Entity extraction
-    await updateProgress(sourceId, 35, "استخراج موجودیت‌ها");
+    // Stage 2: Entity extraction — process ALL chunks with deduplication
+    await updateProgress(sourceId, 35, "استخراج موجودیت‌ها از تمام بخش‌ها");
     const extractedEntities: ExtractedEntity[] = [];
-    for (const chunk of chunks.slice(0, 3)) {
-      // Process first 3 chunks for performance
-      const ents = await extractEntities(chunk);
+    
+    // Process in batches of 5 to balance completeness vs response time
+    const ENTITY_BATCH_SIZE = 5;
+    for (let i = 0; i < chunks.length; i += ENTITY_BATCH_SIZE) {
+      const batch = chunks.slice(i, i + ENTITY_BATCH_SIZE);
+      const batchText = batch.join("\n\n");
+      const ents = await extractEntities(batchText);
       extractedEntities.push(...ents);
     }
+    
     // Deduplicate by name (case-insensitive)
     const uniqueEntities = deduplicateEntities(extractedEntities);
 
@@ -124,19 +132,28 @@ export async function processSourceKnowledge(sourceId: string): Promise<void> {
       }
     }
 
-    // Stage 3: Claim extraction
-    await updateProgress(sourceId, 65, "استخراج ادعاها و شواهد");
+    // Stage 3: Claim extraction — process ALL chunks
+    await updateProgress(sourceId, 65, "استخراج ادعاها از تمام بخش‌ها");
     const entityNames = Array.from(entityNameToId.keys()).map((k) =>
-      // Reverse-lookup by case-insensitive name
       uniqueEntities.find((e) => e.name.toLowerCase() === k)?.name || k
     );
 
-    const extractedClaims = await extractClaims(
-      text.slice(0, 8000),
-      entityNames
-    );
+    const extractedClaims: ExtractedClaim[] = [];
+    for (const chunk of chunks) {
+      const claims = await extractClaims(chunk, entityNames);
+      extractedClaims.push(...claims);
+    }
 
-    for (const claim of extractedClaims) {
+    // Deduplicate claims by normalized statement to avoid duplicates
+    const seenStatements = new Set<string>();
+    const uniqueClaims = extractedClaims.filter((c) => {
+      const key = c.statement.trim().toLowerCase().slice(0, 100);
+      if (seenStatements.has(key)) return false;
+      seenStatements.add(key);
+      return true;
+    });
+
+    for (const claim of uniqueClaims) {
       const createdClaim = await db.claim.create({
         data: {
           workspaceId,
@@ -179,11 +196,11 @@ export async function processSourceKnowledge(sourceId: string): Promise<void> {
       }
     }
 
-    // Stage 4: Relationship extraction
-    await updateProgress(sourceId, 80, "استخراج روابط");
+    // Stage 4: Relationship extraction — using ALL entities and ALL text
+    await updateProgress(sourceId, 80, "استخراج روابط بین موجودیت‌ها");
     const extractedRelationships = await extractRelationships(
       text.slice(0, 6000),
-      uniqueEntities.slice(0, 15)
+      uniqueEntities
     );
 
     for (const rel of extractedRelationships) {
@@ -218,14 +235,24 @@ export async function processSourceKnowledge(sourceId: string): Promise<void> {
       });
     }
 
-    // Stage 5: Timeline extraction
-    await updateProgress(sourceId, 90, "استخراج رویدادهای زمان‌بندی");
-    const extractedEvents = await extractTimelineEvents(
-      text.slice(0, 8000),
-      entityNames
-    );
+    // Stage 5: Timeline extraction — process ALL chunks
+    await updateProgress(sourceId, 90, "استخراج رویدادهای زمانی از تمام بخش‌ها");
+    const extractedEvents: ExtractedTimelineEvent[] = [];
+    for (const chunk of chunks) {
+      const events = await extractTimelineEvents(chunk, entityNames);
+      extractedEvents.push(...events);
+    }
 
-    for (const evt of extractedEvents) {
+    // Deduplicate timeline events
+    const seenEvents = new Set<string>();
+    const uniqueEvents = extractedEvents.filter((e) => {
+      const key = `${e.title}|${e.eventDate || ""}`.toLowerCase().slice(0, 100);
+      if (seenEvents.has(key)) return false;
+      seenEvents.add(key);
+      return true;
+    });
+
+    for (const evt of uniqueEvents) {
       // Find primary entity
       let entityId: string | undefined;
       for (const name of evt.entityNames || []) {
