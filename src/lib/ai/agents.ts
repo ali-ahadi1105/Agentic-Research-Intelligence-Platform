@@ -109,6 +109,7 @@ export async function extractEntities(text: string): Promise<ExtractedEntity[]> 
     ],
     temperature: 0.1,
     maxTokens: 3000,
+    model: "bzl/auto:free",
   }, providerConfig());
 
   return result.entities || [];
@@ -148,7 +149,8 @@ ${truncated}
       },
     ],
     temperature: 0.1,
-    maxTokens: 6000,
+    maxTokens: 3000,
+    model: "bzl/auto:free",
   }, providerConfig());
 
   return result.claims || [];
@@ -190,7 +192,8 @@ ${truncated}
       },
     ],
     temperature: 0.1,
-    maxTokens: 2000,
+    maxTokens: 3000,
+    model: "bzl/auto:free",
   }, providerConfig());
 
   return result.relationships || [];
@@ -227,7 +230,8 @@ ${truncated}
       },
     ],
     temperature: 0.1,
-    maxTokens: 2000,
+    maxTokens: 3000,
+    model: "bzl/auto:free",
   }, providerConfig());
 
   return result.events || [];
