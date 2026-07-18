@@ -73,36 +73,59 @@ export async function chatCompletion(
     "oc/deepseek-v4-flash-free";
 
   // Always use stream:false to get plain JSON response (avoids SSE parsing issues)
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), options.timeout || 180000);
+  let retries = 0;
   let response;
-  try {
-    response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: options.messages,
-        temperature: options.temperature ?? 0.3,
-        max_tokens: options.maxTokens ?? 8000,
-        stream: false,
-      }),
-      signal: controller.signal,
-    });
-  } catch (err) {
-    clearTimeout(timeout);
-    throw new Error(`AI chat completion request failed: ${err instanceof Error ? err.message : "Unknown error"}`);
-  }
-  clearTimeout(timeout);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`AI chat completion HTTP error (${response.status}): ${errorText.slice(0, 300)}`);
+  while (retries <= 3) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), options.timeout || 180000);
+
+    try {
+      const resp = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: options.messages,
+          temperature: options.temperature ?? 0.3,
+          max_tokens: options.maxTokens ?? 8000,
+          stream: false,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (resp.ok) {
+        response = resp;
+        break;
+      }
+
+      // HTTP error — retry 502/503, fail others immediately
+      const errText = await resp.text();
+      if (resp.status === 502 || resp.status === 503) {
+        retries++;
+        console.warn(`[AI] Retry ${retries}/3 after HTTP ${resp.status}...`);
+        await new Promise(r => setTimeout(r, retries * 5000));
+        continue;
+      }
+      throw new Error(`AI chat completion HTTP error (${resp.status}): ${errText.slice(0, 300)}`);
+    } catch (err) {
+      clearTimeout(timeout);
+      if (retries >= 3) {
+        throw new Error(`AI chat completion failed after 3 retries: ${err instanceof Error ? err.message : "Unknown error"}`);
+      }
+      retries++;
+      console.warn(`[AI] Retry ${retries}/3 after fetch error: ${err instanceof Error ? err.message.slice(0, 100) : "unknown"}`);
+      await new Promise(r => setTimeout(r, retries * 5000));
+    }
   }
 
+  if (!response) {
+    throw new Error("AI chat completion failed after 3 retries");
+  }
   const contentType = response.headers.get("content-type") || "";
 
   if (contentType.includes("application/json")) {
