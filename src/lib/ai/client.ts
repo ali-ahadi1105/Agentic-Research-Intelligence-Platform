@@ -65,7 +65,7 @@ export async function chatCompletion(
   const apiKey: string =
     (provider as any).apiKey ||
     process.env.OPENAI_API_KEY ||
-    "sk-a741cf4c3289b8c3-0ce41e-8795c0a0";
+    "";
   const model: string =
     options.model ||
     (provider as any).defaultModel ||
