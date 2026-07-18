@@ -132,15 +132,18 @@ export async function processSourceKnowledge(sourceId: string): Promise<void> {
       }
     }
 
-    // Stage 3: Claim extraction — process ALL chunks
+    // Stage 3: Claim extraction — process ALL chunks in batches
     await updateProgress(sourceId, 65, "استخراج ادعاها از تمام بخش‌ها");
     const entityNames = Array.from(entityNameToId.keys()).map((k) =>
       uniqueEntities.find((e) => e.name.toLowerCase() === k)?.name || k
     );
 
     const extractedClaims: ExtractedClaim[] = [];
-    for (const chunk of chunks) {
-      const claims = await extractClaims(chunk, entityNames);
+    const CLAIM_BATCH_SIZE = 3;
+    for (let i = 0; i < chunks.length; i += CLAIM_BATCH_SIZE) {
+      const batch = chunks.slice(i, i + CLAIM_BATCH_SIZE);
+      const batchText = batch.join("\n\n");
+      const claims = await extractClaims(batchText, entityNames);
       extractedClaims.push(...claims);
     }
 
@@ -235,11 +238,14 @@ export async function processSourceKnowledge(sourceId: string): Promise<void> {
       });
     }
 
-    // Stage 5: Timeline extraction — process ALL chunks
+    // Stage 5: Timeline extraction — process ALL chunks in batches
     await updateProgress(sourceId, 90, "استخراج رویدادهای زمانی از تمام بخش‌ها");
     const extractedEvents: ExtractedTimelineEvent[] = [];
-    for (const chunk of chunks) {
-      const events = await extractTimelineEvents(chunk, entityNames);
+    const TIMELINE_BATCH_SIZE = 5;
+    for (let i = 0; i < chunks.length; i += TIMELINE_BATCH_SIZE) {
+      const batch = chunks.slice(i, i + TIMELINE_BATCH_SIZE);
+      const batchText = batch.join("\n\n");
+      const events = await extractTimelineEvents(batchText, entityNames);
       extractedEvents.push(...events);
     }
 

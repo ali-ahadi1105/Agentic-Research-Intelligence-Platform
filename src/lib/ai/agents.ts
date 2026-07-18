@@ -142,10 +142,8 @@ ${knownEntityNames.length > 0 ? `\nKnown entities (use these exact names when ap
 
 Return JSON: { "claims": [{ "statement": "...", "excerpt": "...", "entityNames": [...], "type": "fact|assertion|prediction|opinion", "confidence": 0.9 }] }
 
-Text:
----
-${truncated}
----`,
+Text:`,
+
       },
     ],
     temperature: 0.1,
