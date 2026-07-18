@@ -192,13 +192,42 @@
 
 | اولویت | آیتمها | تعداد |
 |--------|--------|-------|
-| **P0 (باید فوری)** | PDF فارسی, Embedding, Claims extraction | ۳ |
-| **P1 (ویژگیهای اصلی)** | Opportunity, Research Automation, Notes, Claim Workflow | ۴ |
+| **P0 (باید فوری)** | PDF فارسی (باگ) | ۱ |
+| **P1 (ویژگیهای اصلی)** | Claim Workflow, Notes | ۲ |
 | **P2 (بهبودها)** | Notifications, Import/Export, Research Plan, OCR, Entities | ۵ |
 | **P3 (پیشرفته)** | Search, Multi-Agent, Dashboard, Collaboration, Plugins | ۵ |
 | **V3 (آینده)** | Mobile, Marketplace, Integrations | ۴ |
 
 ---
 
+## وضعیت دیتابیس فعلی (Workspace نمونه)
+
+| آیتم | مقدار |
+|------|-------|
+| **منابع** | ۶ |
+| **Chunkها** | ۲۱۹ |
+| **موجودیتها** | ۱۷۸ |
+| **ادعاها** | ۶۹ |
+| **روابط** | ۶۲ |
+| **رویدادهای زمانی** | ۳۲ |
+| **تحقیقات خودکار** | ۱ |
+
+---
+
+## باگ‌های شناخته شده
+
+### PDF فارسی (P0)
+- **فایل:** `src/lib/export.ts`
+- **توضیح:** حروف فارسی در خروجی PDF به هم ریخته
+- **علت:** فونت Vazirmatn در پنجره پرینت لود نمیشود
+- **راهکار:** `window.print()` در همان صفحه یا تولید سرور با puppeteer
+
+### Unique constraint در Pipeline (P1)
+- **فایل:** `src/lib/services/pipeline.ts`
+- گاهی claimId-entityId تکراری باعث خطا میشود (جزئی، pipeline ادامه میدهد)
+
+---
+
 > **نکته:** هر آیتم بعد از پیادهسازی باید **تست شود** و فقط در صورت کارکرد درست در UI تیک «تکمیل شده» دریافت کند.
-> مستندات PROJECT.md در `/home/morty/Desktop/research-v2/download/PROJECT.md` منبع معتبر برای جزئیات هر ماژول است.
+> مستندات PROJECT.md در `download/PROJECT.md` منبع معتبر برای جزئیات هر ماژول است.
+> فایل HANDOFF.md در مسیر root پروژه برای انتقال سیستم آماده است.
