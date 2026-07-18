@@ -70,11 +70,10 @@ export async function processSourceKnowledge(sourceId: string): Promise<void> {
       // Don't fail the pipeline — semantic search will fall back to keyword matching
     });
 
-    // Stage 2: Entity extraction
+    // Stage 2: Entity extraction — process all chunks
     await updateProgress(sourceId, 35, "استخراج موجودیت‌ها");
     const extractedEntities: ExtractedEntity[] = [];
-    for (const chunk of chunks.slice(0, 3)) {
-      // Process first 3 chunks for performance
+    for (const chunk of chunks) {
       const ents = await extractEntities(chunk);
       extractedEntities.push(...ents);
     }
