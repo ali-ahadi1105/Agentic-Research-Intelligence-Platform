@@ -108,7 +108,7 @@ export async function extractEntities(text: string): Promise<ExtractedEntity[]> 
       },
     ],
     temperature: 0.1,
-    maxTokens: 3000,
+    maxTokens: 6000,
   }, providerConfig());
 
   return result.entities || [];

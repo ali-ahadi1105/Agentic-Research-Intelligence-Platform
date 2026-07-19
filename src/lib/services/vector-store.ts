@@ -30,16 +30,18 @@ export async function storeEmbeddings(
 ): Promise<void> {
   if (items.length === 0) return;
 
-  await db.$transaction(
-    items.map((item) => {
+  for (const item of items) {
+    try {
       const vectorStr = `[${item.embedding.join(",")}]`;
-      return db.$executeRawUnsafe(
+      await db.$executeRawUnsafe(
         `UPDATE "Chunk" SET "embedding" = cast($1 as vector) WHERE "id" = $2`,
         vectorStr,
         item.chunkId
       );
-    })
-  );
+    } catch (err) {
+      console.warn(`[VectorStore] Failed to store embedding for chunk ${item.chunkId} (${item.embedding.length}dims):`, (err as Error)?.message?.slice(0, 100));
+    }
+  }
 }
 
 /**

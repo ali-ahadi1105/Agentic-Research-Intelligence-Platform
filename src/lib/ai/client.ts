@@ -61,7 +61,7 @@ export async function chatCompletion(
   const baseUrl: string =
     (provider as any).baseUrl ||
     process.env.OPENAI_BASE_URL ||
-    "http://localhost:20128/v1";
+    "http://localhost:20135/v1";
   const apiKey: string =
     (provider as any).apiKey ||
     process.env.OPENAI_API_KEY ||
