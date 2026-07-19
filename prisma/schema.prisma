@@ -170,8 +170,8 @@ model Chunk {
   content        String
   position       Int
   tokenCount     Int?
-  // PostgreSQL pgvector extension type
-  embedding      Unsupported("vector")?
+  // PostgreSQL pgvector extension type (384d = Xenova/all-MiniLM-L6-v2 local model)
+  embedding      Unsupported("vector(384)")?
   metadata       String   @default("{}")
   createdAt      DateTime @default(now())
 

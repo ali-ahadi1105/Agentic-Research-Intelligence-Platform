@@ -78,7 +78,7 @@ export async function chatCompletion(
 
   while (retries <= 3) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), options.timeout || 180000);
+    const timeout = setTimeout(() => controller.abort(), options.timeout || 30000);
 
     try {
       const resp = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {

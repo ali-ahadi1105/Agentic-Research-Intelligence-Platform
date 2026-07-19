@@ -91,7 +91,7 @@ export function getDefaultProviderConfig(): ProviderConfig {
  * Embeddings always go through an OpenAI-compatible API (or Gemini which has its own).
  */
 export function getEmbeddingProviderConfig(): ProviderConfig {
-  // If a separate embedding endpoint is configured, use it
+  // If a separate embedding endpoint is explicitly configured, use it
   if (process.env.EMBEDDING_API_KEY || process.env.EMBEDDING_BASE_URL) {
     return {
       type: "openai-compatible",
@@ -102,21 +102,16 @@ export function getEmbeddingProviderConfig(): ProviderConfig {
     };
   }
 
-  // Otherwise use the default provider for embeddings
-  const defaultConfig = getDefaultProviderConfig();
-
-  // Claude doesn't support embeddings — fall back to OpenAI-compatible
-  if (defaultConfig.type === "anthropic") {
-    return {
-      type: "openai-compatible",
-      apiKey: process.env.OPENAI_API_KEY || "",
-      baseUrl: process.env.OPENAI_BASE_URL || "https://api.openai.com/v1",
-      defaultModel: "gpt-4o-mini",
-      embeddingModel: process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
-    };
-  }
-
-  return defaultConfig;
+  // No embedding-specific config — skip external provider and use local only.
+  // Return a provider with an empty API key so isAvailable() returns false,
+  // which causes client.ts to go directly to the local Transformers.js fallback.
+  return {
+    type: "openai-compatible",
+    apiKey: "",
+    baseUrl: "",
+    defaultModel: "gpt-4o-mini",
+    embeddingModel: "text-embedding-3-small",
+  };
 }
 
 // Cache provider instances by config hash
