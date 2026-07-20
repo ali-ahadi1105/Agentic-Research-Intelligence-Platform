@@ -60,12 +60,17 @@ export async function chatCompletion(
   const apiKey: string =
     (provider as any).apiKey ||
     process.env.OPENAI_API_KEY ||
-    "sk-a74...c0a0";
+    "";
+  if (!apiKey) {
+    throw new Error(
+      "OPENAI_API_KEY is required. Set it in .env or configure a provider with a valid API key."
+    );
+  }
   const model: string =
     options.model ||
     (provider as any).defaultModel ||
     process.env.OPENAI_CHAT_MODEL ||
-    "oc/deepseek-v4-flash-free";
+    "gpt-4o-mini";
 
   const maxRetries = 4;
   const baseDelay = 2000;

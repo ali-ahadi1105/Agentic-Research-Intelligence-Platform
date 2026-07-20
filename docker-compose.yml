@@ -20,10 +20,10 @@ services:
       - "3000:3000"
     environment:
       # Database
-      - DATABASE_URL=postgresql://research_user:${DB_PASSWORD:-password123}@db:5432/research_platform?schema=public
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
 
       # Auth
-      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
 
       # LLM Provider
       - LLM_PROVIDER=${LLM_PROVIDER:-openai-compatible}
@@ -69,9 +69,9 @@ services:
     image: pgvector/pgvector:pg15
     container_name: research-db
     environment:
-      - POSTGRES_USER=research_user
-      - POSTGRES_PASSWORD=${DB_PASSWORD:-password123}
-      - POSTGRES_DB=research_platform
+      - POSTGRES_USER=${POSTGRES_USER:-research_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - POSTGRES_DB=${POSTGRES_DB:-research_platform}
     ports:
       - "5432:5432"
     volumes:
