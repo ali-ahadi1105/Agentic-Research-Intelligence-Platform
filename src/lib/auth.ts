@@ -15,6 +15,9 @@ if (JWT_SECRET.length < 32) {
 const SESSION_COOKIE = "research_session";
 const SESSION_DURATION_DAYS = 7;
 
+// JWT_SECRET is guaranteed to be defined after the checks above
+const _jwtSecret: string = JWT_SECRET!;
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -42,14 +45,14 @@ export async function verifyPassword(
 }
 
 export function signToken(payload: SessionPayload): string {
-  return jwt.sign(payload, JWT_SECRET, {
+  return jwt.sign(payload, _jwtSecret, {
     expiresIn: `${SESSION_DURATION_DAYS}d`,
   });
 }
 
 export function verifyToken(token: string): SessionPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as SessionPayload;
+    return jwt.verify(token, _jwtSecret) as unknown as SessionPayload;
   } catch {
     return null;
   }

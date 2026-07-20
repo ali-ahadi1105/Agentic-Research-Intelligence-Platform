@@ -30,6 +30,7 @@ import {
   hasEmbedding,
   getEmbeddingCount,
   deleteEmbeddingsForChunks,
+  type VectorSearchResult,
 } from "./vector-store";
 
 export interface SemanticSearchResult {

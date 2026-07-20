@@ -34,6 +34,7 @@ interface AppState {
   setConversation: (id: string | null) => void;
   setSelectedEntity: (id: string | null) => void;
   setSelectedReport: (id: string | null) => void;
+  setSelectedOpportunity: (id: string | null) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
